@@ -1,79 +1,49 @@
 from pyrogram import Client, filters
 from pyrogram.errors import SessionPasswordNeeded
 from config import API_ID, API_HASH
-from database import set_logged_in
+from database import add_user
 
-pending_login = {}
+pending = {}
 
 def setup_login(app):
 
     @app.on_message(filters.command("login"))
-    async def login(_, message):
-        user_id = message.from_user.id
-        pending_login[user_id] = {}
-        await message.reply_text("📞 Apna phone number country code ke sath bhejo\nExample: +919876543210")
+    async def login(_, m):
+        pending[m.from_user.id] = {}
+        await m.reply("📞 Send phone number with country code")
 
     @app.on_message(filters.text & filters.private)
-    async def process_login(_, message):
-        user_id = message.from_user.id
-
-        if user_id not in pending_login:
+    async def process(_, m):
+        uid = m.from_user.id
+        if uid not in pending:
             return
 
-        data = pending_login[user_id]
+        data = pending[uid]
 
-        # Step 1: Phone
+        client = Client(f"sessions/{uid}", API_ID, API_HASH)
+        await client.connect()
+
         if "phone" not in data:
-            data["phone"] = message.text
-            client = Client(
-                f"sessions/{user_id}",
-                api_id=API_ID,
-                api_hash=API_HASH
-            )
-            await client.connect()
-            sent = await client.send_code(data["phone"])
+            data["phone"] = m.text
+            sent = await client.send_code(m.text)
             data["hash"] = sent.phone_code_hash
+            await m.reply("🔐 Send OTP")
             await client.disconnect()
-            await message.reply_text("🔐 OTP bhejo")
             return
 
-        # Step 2: OTP
         if "otp" not in data:
-            data["otp"] = message.text
-            client = Client(
-                f"sessions/{user_id}",
-                api_id=API_ID,
-                api_hash=API_HASH
-            )
-            await client.connect()
             try:
-                await client.sign_in(
-                    phone_number=data["phone"],
-                    phone_code=data["otp"],
-                    phone_code_hash=data["hash"]
-                )
+                await client.sign_in(data["phone"], data["hash"], m.text)
             except SessionPasswordNeeded:
-                await message.reply_text("🔑 2-step password bhejo")
                 data["2fa"] = True
+                await m.reply("🔑 Send 2FA password")
                 await client.disconnect()
                 return
 
-            set_logged_in(user_id)
-            await client.disconnect()
-            pending_login.pop(user_id)
-            await message.reply_text("✅ Login successful! Ab /add_rule use karo")
-            return
+        elif data.get("2fa"):
+            await client.check_password(m.text)
 
-        # Step 3: 2FA
-        if data.get("2fa"):
-            client = Client(
-                f"sessions/{user_id}",
-                api_id=API_ID,
-                api_hash=API_HASH
-            )
-            await client.connect()
-            await client.check_password(message.text)
-            set_logged_in(user_id)
-            await client.disconnect()
-            pending_login.pop(user_id)
-            await message.reply_text("✅ Login successful with 2FA!")
+        add_user(uid)
+        pending.pop(uid)
+        await m.reply("✅ Login successful")
+        await client.disconnect()
