@@ -14,7 +14,7 @@ def setup_rules(app):
         pending[uid] = {}
         await m.reply("📥 Send SOURCE chat ID")
 
-    @app.on_message(filters.text & filters.private & ~filters.command)
+    @app.on_message(filters.text & filters.private & ~filters.regex("^/"))
     async def process(_, m):
         uid = m.from_user.id
         if uid not in pending:
