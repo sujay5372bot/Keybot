@@ -12,14 +12,21 @@ async def start_forward(uid, api_id, api_hash):
     await client.start()
     clients[uid] = client
 
-    rules = get_rules(uid)
-
     @client.on_message()
     async def handler(_, m):
         if not is_forwarding(uid):
             return
-        for s,d,k in rules:
+
+        rules = get_rules(uid)   # ✅ yahin rehna chahiye
+
+        for s, d, k in rules:
             if m.chat and m.chat.id == s:
                 if not k or (m.text and any(x in m.text.lower() for x in k.split(","))):
                     await m.forward(d)
                     await asyncio.sleep(1)
+
+async def stop_forward_client(uid):
+    client = clients.get(uid)
+    if client:
+        await client.stop()
+        clients.pop(uid)
