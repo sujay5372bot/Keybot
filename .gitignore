@@ -1,0 +1,4 @@
+sessions/
+*.session
+users.db
+__pycache__/
