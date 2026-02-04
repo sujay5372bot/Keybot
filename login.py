@@ -33,7 +33,11 @@ def setup_login(app):
 
         if "otp" not in data:
             try:
-                await client.sign_in(data["phone"], data["hash"], m.text)
+                await client.sign_in(
+                    phone_number=data["phone"],
+                    phone_code=m.text,
+                    phone_code_hash=data["hash"]
+                )
             except SessionPasswordNeeded:
                 data["2fa"] = True
                 await m.reply("🔑 Send 2FA password")
